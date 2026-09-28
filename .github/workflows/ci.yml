@@ -1,0 +1,10 @@
+name: ci
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  ip:
+    uses: Tape-Out/.github/.github/workflows/ip.yml@main
+    permissions:
+      contents: write
+    with:
+      # 上游挂着 ramulator2、cocogfx 等一串子模块，STD 浮点这一档一个都用不到
+      nested-subs: third_party/cvfpu

@@ -1,0 +1,129 @@
+name: vortex
+version: 0.1.0
+spec: '0.1'
+kind: ip
+lang: sv
+identity:
+  slug: vortex-tapeout-foreign
+  display_name: Vortex
+  summary: Georgia Tech's Vortex, the open-source RISC-V GPGPU, taken as a black box.
+  category: accelerator
+  subcategories:
+  - gpu
+  - riscv
+  ip_family: vortex
+  integration_profile: []
+  maturity: planned
+contract:
+  version: 1
+  ctrl:
+    shape: none
+    aw: 32
+    dw: 32
+params:
+  xlen:
+    type: choice
+    values: [32, 64]
+    default: 32
+  numClusters:
+    type: int
+    default: 1
+    range: [1, 4]
+  numCores:
+    type: int
+    default: 1
+    range: [1, 8]
+  numWarps:
+    type: choice
+    values: [2, 4, 8, 16, 32]
+    default: 4
+  numThreads:
+    type: choice
+    values: [2, 4, 8, 16, 32]
+    default: 4
+features:
+  l2:
+    type: bool
+    default: false
+  l3:
+    type: bool
+    default: false
+emit:
+- kind: foreign
+  lang: sv
+  top: Vortex
+  setup: cfg
+  rtl:
+  # 两份配置头随 XLEN 变，cfg 两档都生成，这里按旋钮挑一份
+  - { flist: build/vx/32/vortex.f, when: { xlen: 32 } }
+  - { flist: build/vx/64/vortex.f, when: { xlen: 64 } }
+  - third_party/vortex/hw/rtl/VX_gpu_pkg.sv
+  - third_party/vortex/hw/rtl/fpu/VX_fpu_pkg.sv
+  - third_party/vortex/hw/rtl/VX_trace_pkg.sv
+  - third_party/vortex/hw/rtl/Vortex.sv
+  # 只给 XLEN、原始旋钮与选择子；其余由 VX_config.vh 自己推出来。
+  # 上游 hw/syn/firesim/Makefile 这样传，传多了会把存储口算成 0
+  defines:
+    SYNTHESIS: 1
+    ASIC: 1
+    YOSYS: 1
+    VX_CFG_XLEN: xlen
+    "VX_CFG_XLEN_{{xlen}}": true
+    VX_CFG_NUM_CLUSTERS: numClusters
+    VX_CFG_NUM_CORES: numCores
+    VX_CFG_NUM_WARPS: numWarps
+    VX_CFG_NUM_THREADS: numThreads
+    VX_CFG_L2_ENABLE: { when: l2 }
+    VX_CFG_L3_ENABLE: { when: l3 }
+    VX_CFG_FPU_TYPE_STD: 1
+    VX_CFG_TCU_TYPE_TFR: 1
+  receipt:
+  - { symbol: "VX_gpu_pkg::NUM_SOCKETS", expect: { eq: "{{numCores}}" } }
+  - { symbol: "VX_gpu_pkg::L2_MEM_PORTS", expect: { ge: 1 } }
+  clock:
+    port: clk
+  reset:
+    port: reset
+    active: high
+    sync: true
+  ports:
+  - endpoint: mem
+    kind: transaction
+    role: manager
+    profile: vortex-mem
+    prefix: mem_
+  - endpoint: dcr
+    kind: transaction
+    role: target
+    profile: vortex-dcr
+    prefix: dcr_
+  - endpoint: ctl
+    kind: physical
+    type: VortexCtl
+    map:
+      start: start
+      busy: busy
+  limits:
+  - 浮点只接 ASIC 综合那一档的 STD；FPNEW 要上游嵌套的 cvfpu，DPI 与 DSP 分别只给仿真与 FPGA
+  - 扩展（TCU、DXA、RTU、图形、虚存、原子）本版不开放
+diagnostics:
+  # 上游靠 Verilator 宽松过：先用后声明（vortexgpgpu/vortex#418 在修），$bits 里的层次引用
+  allow: [slang:UsedBeforeDeclared, slang:SysFuncHierarchicalNotAllowed, slang:ConstEvalHierarchicalName]
+tasks:
+  cfg:
+    desc: 用上游的 ci/gen_config.py 出两档 XLEN 的配置头，并写一份 Flist 列出全部 RTL 目录
+    run: |
+      bash -c '
+      set -e
+      V=third_party/vortex; R=$V/hw/rtl
+      for x in 32 64; do
+        O=build/vx/$x; rm -rf $O; mkdir -p $O
+        XLEN=$x python3 $V/ci/gen_config.py --config $V/VX_config.toml --output $O/VX_config.vh --format verilog
+        XLEN=$x python3 $V/ci/gen_config.py --config $V/VX_types.toml --output $O/VX_types.vh --format verilog --resolved
+        { echo "+incdir+$O"; echo "+incdir+$V/sw"; echo "+incdir+$V/hw/dpi"
+          for d in $(find $R -type d | sort); do echo "+incdir+$d"; echo "-y $d"; done
+          echo "-y $V/hw/syn/libs/no_mem"; echo "+libext+.sv+.v"; } > $O/vortex.f
+      done'
+targets:
+  foreign:
+    driver: foreign
