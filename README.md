@@ -29,7 +29,7 @@ $ ran test vortex
 
 ## Limits
 
-Vortex relies on Verilator's leniency in two places: signals used before they are declared, and hierarchical references inside `$bits`. The manifest allows both slang diagnostics. [vortexgpgpu/vortex#418](https://github.com/vortexgpgpu/vortex/pull/418) fixes the first upstream.
+Vortex relies on Verilator's leniency for hierarchical references inside `$bits`, and the manifest allows that slang diagnostic. Signals used before their declaration were the other case; upstream fixed them in `8311a72` ([vortexgpgpu/vortex#418](https://github.com/vortexgpgpu/vortex/pull/418)), the commit the submodule is pinned at.
 
 The FPU is fixed to the `STD` implementation that upstream picks for ASIC synthesis; `FPNEW` needs the nested `cvfpu`, `DPI` is for simulation and `DSP` for FPGAs. The extensions (TCU, DXA, RTU, graphics, virtual memory, atomics) are not exposed yet. Upstream's own test flow needs its RISC-V toolchain and runtime, and does not run here. The target is FPGA-proven at most: the design has no ASIC memories.
 

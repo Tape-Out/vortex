@@ -107,8 +107,8 @@ emit:
   - 浮点只接 ASIC 综合那一档的 STD；FPNEW 要上游嵌套的 cvfpu，DPI 与 DSP 分别只给仿真与 FPGA
   - 扩展（TCU、DXA、RTU、图形、虚存、原子）本版不开放
 diagnostics:
-  # 上游靠 Verilator 宽松过：先用后声明（vortexgpgpu/vortex#418 在修），$bits 里的层次引用
-  allow: [slang:UsedBeforeDeclared, slang:SysFuncHierarchicalNotAllowed, slang:ConstEvalHierarchicalName]
+  # $bits 里的层次引用，上游靠 Verilator 宽松过
+  allow: [slang:SysFuncHierarchicalNotAllowed, slang:ConstEvalHierarchicalName]
 tasks:
   cfg:
     desc: 用上游的 ci/gen_config.py 出两档 XLEN 的配置头，并写一份 Flist 列出全部 RTL 目录
